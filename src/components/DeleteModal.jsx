@@ -1,4 +1,4 @@
-export default function DeleteModal({ tabName, onConfirm, onClose }) {
+export default function DeleteModal({ tabName, message, onConfirm, onClose }) {
   return (
     <div
       className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-6"
@@ -11,10 +11,9 @@ export default function DeleteModal({ tabName, onConfirm, onClose }) {
         <div className="w-10 h-10 bg-red-500/10 border border-red-500/20 rounded-full flex items-center justify-center mb-4">
           <span className="text-red-400 text-lg">⚠</span>
         </div>
-        <h2 className="text-white font-bold text-lg mb-2">Delete Workout Day?</h2>
+        <h2 className="text-white font-bold text-lg mb-2">Delete "{tabName}"?</h2>
         <p className="text-blue-300/50 text-sm mb-6 leading-relaxed">
-          <span className="text-white font-semibold">"{tabName}"</span> and all its
-          exercises and sets will be permanently deleted.
+          {message ?? 'This will be permanently deleted.'}
         </p>
         <div className="flex gap-3">
           <button
