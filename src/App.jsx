@@ -5,6 +5,7 @@ import DayPicker from './components/DayPicker'
 import WorkoutDay from './components/WorkoutDay'
 import AddTabModal from './components/AddTabModal'
 import DeleteModal from './components/DeleteModal'
+import OneRMModal from './components/OneRMModal'
 
 export default function App() {
   const [tabs, setTabs] = useState([])
@@ -12,6 +13,7 @@ export default function App() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [showOneRM, setShowOneRM] = useState(false)
 
   useEffect(() => {
     fetchTabs()
@@ -55,7 +57,7 @@ export default function App() {
 
   return (
     <div className="min-h-svh bg-[#070b14] flex flex-col">
-      <Header />
+      <Header onOpenCalc={() => setShowOneRM(true)} />
       <DayPicker
         tabs={tabs}
         activeTab={tabs.find((t) => t.id === activeTabId) || null}
@@ -99,6 +101,8 @@ export default function App() {
           onClose={() => setDeleteTarget(null)}
         />
       )}
+
+      {showOneRM && <OneRMModal onClose={() => setShowOneRM(false)} />}
     </div>
   )
 }
