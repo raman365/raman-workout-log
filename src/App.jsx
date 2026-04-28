@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import Header from './components/Header'
-import TabBar from './components/TabBar'
+import DayPicker from './components/DayPicker'
 import WorkoutDay from './components/WorkoutDay'
 import AddTabModal from './components/AddTabModal'
 import DeleteModal from './components/DeleteModal'
@@ -56,9 +56,9 @@ export default function App() {
   return (
     <div className="min-h-svh bg-[#070b14] flex flex-col">
       <Header />
-      <TabBar
+      <DayPicker
         tabs={tabs}
-        activeTabId={activeTabId}
+        activeTab={tabs.find((t) => t.id === activeTabId) || null}
         onSelect={setActiveTabId}
         onAdd={() => setShowAddModal(true)}
         onDelete={setDeleteTarget}

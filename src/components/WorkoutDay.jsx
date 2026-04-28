@@ -4,12 +4,14 @@ import ExerciseCard from './ExerciseCard'
 
 export default function WorkoutDay({ tab }) {
   const [exercises, setExercises] = useState([])
+  const [openId, setOpenId] = useState(null)
   const [newName, setNewName] = useState('')
   const [loading, setLoading] = useState(true)
   const inputRef = useRef(null)
 
   useEffect(() => {
     setLoading(true)
+    setOpenId(null)
     fetchExercises()
   }, [tab.id])
 
@@ -78,6 +80,8 @@ export default function WorkoutDay({ tab }) {
         <ExerciseCard
           key={exercise.id}
           exercise={exercise}
+          isOpen={openId === exercise.id}
+          onToggle={() => setOpenId((prev) => (prev === exercise.id ? null : exercise.id))}
           onDelete={() => deleteExercise(exercise.id)}
           onSetsChange={(sets) => handleSetsChange(exercise.id, sets)}
         />

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import DeleteModal from './DeleteModal'
 
-export default function ExerciseCard({ exercise, onDelete, onSetsChange }) {
+export default function ExerciseCard({ exercise, isOpen, onToggle, onDelete, onSetsChange }) {
   const [sets, setSets] = useState(exercise.sets || [])
   const [adding, setAdding] = useState(false)
   const [confirmExercise, setConfirmExercise] = useState(false)
@@ -51,10 +51,19 @@ export default function ExerciseCard({ exercise, onDelete, onSetsChange }) {
     <>
       <div className="bg-[#0d1526] border border-blue-900/30 rounded-2xl overflow-hidden">
         {/* Exercise header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-blue-900/20">
-          <span className="text-white font-bold text-base tracking-wide">{exercise.name}</span>
+        <div
+          className={`flex items-center justify-between px-4 py-3 cursor-pointer select-none ${isOpen ? 'border-b border-blue-900/20' : ''}`}
+          onClick={onToggle}
+        >
+          <div className="flex items-center gap-2">
+            <span className={`text-blue-400/60 text-xs transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`}>▶</span>
+            <span className="text-white font-bold text-base tracking-wide">{exercise.name}</span>
+            {!isOpen && sets.length > 0 && (
+              <span className="text-blue-400/40 text-xs font-semibold">{sets.length} set{sets.length !== 1 ? 's' : ''}</span>
+            )}
+          </div>
           <button
-            onClick={() => setConfirmExercise(true)}
+            onClick={(e) => { e.stopPropagation(); setConfirmExercise(true) }}
             className="text-red-400/50 hover:text-red-400 transition-colors text-xs px-2 py-1"
           >
             Remove
@@ -62,7 +71,7 @@ export default function ExerciseCard({ exercise, onDelete, onSetsChange }) {
         </div>
 
         {/* Sets */}
-        {sets.length > 0 && (
+        {isOpen && sets.length > 0 && (
           <div className="px-4 pt-3 space-y-2">
             <div className="grid grid-cols-[52px_1fr_1fr_52px_24px] gap-2 text-xs text-blue-300/40 font-semibold uppercase tracking-widest px-1">
               <span></span>
@@ -112,15 +121,17 @@ export default function ExerciseCard({ exercise, onDelete, onSetsChange }) {
         )}
 
         {/* Add set button */}
-        <div className="px-4 py-3">
-          <button
-            onClick={addSet}
-            disabled={adding}
-            className="w-full py-2.5 border border-dashed border-blue-700/30 rounded-xl text-blue-400/50 hover:text-blue-400 hover:border-blue-600/50 active:scale-[0.98] text-sm font-semibold transition-all disabled:opacity-40"
-          >
-            {adding ? 'Adding...' : '+ Add Set'}
-          </button>
-        </div>
+        {isOpen && (
+          <div className="px-4 py-3">
+            <button
+              onClick={addSet}
+              disabled={adding}
+              className="w-full py-2.5 border border-dashed border-blue-700/30 rounded-xl text-blue-400/50 hover:text-blue-400 hover:border-blue-600/50 active:scale-[0.98] text-sm font-semibold transition-all disabled:opacity-40"
+            >
+              {adding ? 'Adding...' : '+ Add Set'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Exercise delete confirmation */}
