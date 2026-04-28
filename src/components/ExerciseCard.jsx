@@ -56,7 +56,7 @@ export default function ExerciseCard({ exercise, isOpen, onToggle, onDelete, onS
           onClick={onToggle}
         >
           <div className="flex items-center gap-2">
-            <span className={`text-blue-400/60 text-xs transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`}>▶</span>
+            <span className={`text-blue-400/60 text-xs transition-transform duration-200 ${isOpen ? 'rotate-0' : '-rotate-90'}`}>▼</span>
             <span className="text-white font-bold text-base tracking-wide">{exercise.name}</span>
             {!isOpen && sets.length > 0 && (
               <span className="text-blue-400/40 text-xs font-semibold">{sets.length} set{sets.length !== 1 ? 's' : ''}</span>
