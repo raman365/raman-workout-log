@@ -6,6 +6,7 @@ import WorkoutDay from './components/WorkoutDay'
 import AddTabModal from './components/AddTabModal'
 import DeleteModal from './components/DeleteModal'
 import OneRMModal from './components/OneRMModal'
+import RestTimer from './components/RestTimer'
 
 export default function App() {
   const [tabs, setTabs] = useState([])
@@ -14,6 +15,11 @@ export default function App() {
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [loading, setLoading] = useState(true)
   const [showOneRM, setShowOneRM] = useState(false)
+  const [rest, setRest] = useState(null)
+
+  function startRest(seconds) {
+    setRest({ endsAt: Date.now() + seconds * 1000, duration: seconds * 1000 })
+  }
 
   useEffect(() => {
     fetchTabs()
@@ -73,7 +79,7 @@ export default function App() {
           </div>
         </div>
       ) : activeTab ? (
-        <WorkoutDay key={activeTab.id} tab={activeTab} />
+        <WorkoutDay key={activeTab.id} tab={activeTab} onStartRest={startRest} />
       ) : (
         <div className="flex-1 flex items-center justify-center flex-col gap-3 text-center px-8">
           <div className="text-5xl mb-2">💪</div>
@@ -103,6 +109,14 @@ export default function App() {
       )}
 
       {showOneRM && <OneRMModal onClose={() => setShowOneRM(false)} />}
+
+      {rest && (
+        <RestTimer
+          endsAt={rest.endsAt}
+          duration={rest.duration}
+          onClose={() => setRest(null)}
+        />
+      )}
     </div>
   )
 }

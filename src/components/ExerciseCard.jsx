@@ -1,12 +1,55 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import DeleteModal from './DeleteModal'
 
-export default function ExerciseCard({ exercise, isOpen, onToggle, onDelete, onSetsChange }) {
+export default function ExerciseCard({ exercise, isOpen, onToggle, onDelete, onSetsChange, historyTick, onStartRest }) {
   const [sets, setSets] = useState(exercise.sets || [])
   const [adding, setAdding] = useState(false)
   const [confirmExercise, setConfirmExercise] = useState(false)
   const [confirmSetId, setConfirmSetId] = useState(null)
+  const [lastSession, setLastSession] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadHistory() {
+      const { data } = await supabase
+        .from('session_logs')
+        .select('*')
+        .eq('exercise_id', exercise.id)
+        .order('session_date', { ascending: false })
+        .order('set_number', { ascending: true })
+
+      if (cancelled || !data || data.length === 0) {
+        if (!cancelled) setLastSession(null)
+        return
+      }
+      const latestDate = data[0].session_date
+      const latestSets = data.filter((r) => r.session_date === latestDate)
+      const top = latestSets.reduce((best, s) => {
+        const w = parseFloat(s.weight) || 0
+        const r = parseInt(s.reps) || 0
+        const bw = parseFloat(best?.weight) || 0
+        const br = parseInt(best?.reps) || 0
+        if (w > bw || (w === bw && r > br)) return s
+        return best
+      }, latestSets[0])
+      setLastSession({ date: latestDate, top })
+    }
+    loadHistory()
+    return () => { cancelled = true }
+  }, [exercise.id, historyTick])
+
+  function formatLastDate(d) {
+    const then = new Date(d + 'T00:00:00')
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const days = Math.round((today - then) / 86400000)
+    if (days <= 0) return 'today'
+    if (days === 1) return 'yesterday'
+    if (days < 7) return `${days}d ago`
+    if (days < 30) return `${Math.floor(days / 7)}w ago`
+    return `${Math.floor(days / 30)}mo ago`
+  }
 
   async function addSet() {
     setAdding(true)
@@ -55,12 +98,22 @@ export default function ExerciseCard({ exercise, isOpen, onToggle, onDelete, onS
           className={`flex items-center justify-between px-4 py-3 cursor-pointer select-none ${isOpen ? 'border-b border-blue-900/20' : ''}`}
           onClick={onToggle}
         >
-          <div className="flex items-center gap-2">
-            <span className={`text-blue-400/60 text-xs transition-transform duration-200 ${isOpen ? 'rotate-0' : '-rotate-90'}`}>▼</span>
-            <span className="text-white font-bold text-base tracking-wide">{exercise.name}</span>
-            {!isOpen && sets.length > 0 && (
-              <span className="text-blue-400/40 text-xs font-semibold">{sets.length} set{sets.length !== 1 ? 's' : ''}</span>
-            )}
+          <div className="flex items-start gap-2 min-w-0">
+            <span className={`text-blue-400/60 text-xs mt-1.5 transition-transform duration-200 ${isOpen ? 'rotate-0' : '-rotate-90'}`}>▼</span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-white font-bold text-base tracking-wide">{exercise.name}</span>
+                {!isOpen && sets.length > 0 && (
+                  <span className="text-blue-400/40 text-xs font-semibold">{sets.length} set{sets.length !== 1 ? 's' : ''}</span>
+                )}
+              </div>
+              {lastSession && (
+                <div className="text-[11px] text-blue-300/40 font-semibold mt-0.5 tracking-wide">
+                  Last: <span className="text-blue-300/70">{lastSession.top.weight} × {lastSession.top.reps}</span>
+                  <span className="text-blue-400/30"> · {formatLastDate(lastSession.date)}</span>
+                </div>
+              )}
+            </div>
           </div>
           <button
             onClick={(e) => { e.stopPropagation(); setConfirmExercise(true) }}
@@ -122,7 +175,7 @@ export default function ExerciseCard({ exercise, isOpen, onToggle, onDelete, onS
 
         {/* Add set button */}
         {isOpen && (
-          <div className="px-4 py-3">
+          <div className="px-4 py-3 space-y-2">
             <button
               onClick={addSet}
               disabled={adding}
@@ -130,6 +183,19 @@ export default function ExerciseCard({ exercise, isOpen, onToggle, onDelete, onS
             >
               {adding ? 'Adding...' : '+ Add Set'}
             </button>
+            {sets.length > 0 && onStartRest && (
+              <div className="flex gap-2">
+                {[60, 90, 120].map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => onStartRest(s)}
+                    className="flex-1 py-2 bg-[#131f35] border border-blue-900/30 rounded-xl text-blue-300/60 hover:text-blue-200 hover:border-blue-700/60 active:scale-95 text-xs font-bold tracking-widest transition-all"
+                  >
+                    ⏱ {s}s
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

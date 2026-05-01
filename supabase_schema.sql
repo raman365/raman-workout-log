@@ -33,3 +33,24 @@ alter table sets enable row level security;
 create policy "Public access" on workout_tabs for all using (true) with check (true);
 create policy "Public access" on exercises for all using (true) with check (true);
 create policy "Public access" on sets for all using (true) with check (true);
+
+-- Session history snapshots (for "Last Time" hint)
+create table if not exists session_logs (
+  id uuid default gen_random_uuid() primary key,
+  exercise_id uuid references exercises(id) on delete cascade not null,
+  session_date date not null default current_date,
+  set_number integer not null default 1,
+  weight text default '',
+  reps text default '',
+  paused boolean default false,
+  created_at timestamp with time zone default now()
+);
+
+create index if not exists idx_session_logs_exercise_date
+  on session_logs(exercise_id, session_date desc);
+
+alter table session_logs enable row level security;
+create policy "Public access" on session_logs for all using (true) with check (true);
+
+-- Also add paused to sets if not already present
+alter table sets add column if not exists paused boolean default false;

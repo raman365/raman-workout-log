@@ -2,11 +2,14 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import ExerciseCard from './ExerciseCard'
 
-export default function WorkoutDay({ tab }) {
+export default function WorkoutDay({ tab, onStartRest }) {
   const [exercises, setExercises] = useState([])
   const [openId, setOpenId] = useState(null)
   const [newName, setNewName] = useState('')
   const [loading, setLoading] = useState(true)
+  const [finishing, setFinishing] = useState(false)
+  const [justFinished, setJustFinished] = useState(false)
+  const [historyTick, setHistoryTick] = useState(0)
   const inputRef = useRef(null)
 
   useEffect(() => {
@@ -58,6 +61,46 @@ export default function WorkoutDay({ tab }) {
     )
   }
 
+  async function finishWorkout() {
+    setFinishing(true)
+    const today = new Date().toISOString().slice(0, 10)
+    const exerciseIds = exercises.map((e) => e.id)
+
+    if (exerciseIds.length > 0) {
+      await supabase
+        .from('session_logs')
+        .delete()
+        .in('exercise_id', exerciseIds)
+        .eq('session_date', today)
+    }
+
+    const rows = exercises.flatMap((ex) =>
+      (ex.sets || [])
+        .filter((s) => s.weight && s.reps)
+        .map((s) => ({
+          exercise_id: ex.id,
+          session_date: today,
+          set_number: s.set_number,
+          weight: s.weight,
+          reps: s.reps,
+          paused: s.paused || false,
+        }))
+    )
+
+    if (rows.length > 0) {
+      await supabase.from('session_logs').insert(rows)
+    }
+
+    setHistoryTick((t) => t + 1)
+    setFinishing(false)
+    setJustFinished(true)
+    setTimeout(() => setJustFinished(false), 2200)
+  }
+
+  const hasLoggableSets = exercises.some((ex) =>
+    (ex.sets || []).some((s) => s.weight && s.reps)
+  )
+
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -84,6 +127,8 @@ export default function WorkoutDay({ tab }) {
           onToggle={() => setOpenId((prev) => (prev === exercise.id ? null : exercise.id))}
           onDelete={() => deleteExercise(exercise.id)}
           onSetsChange={(sets) => handleSetsChange(exercise.id, sets)}
+          historyTick={historyTick}
+          onStartRest={onStartRest}
         />
       ))}
 
@@ -105,6 +150,21 @@ export default function WorkoutDay({ tab }) {
           ADD
         </button>
       </div>
+
+      {/* Finish workout button */}
+      {hasLoggableSets && (
+        <button
+          onClick={finishWorkout}
+          disabled={finishing || justFinished}
+          className={`w-full py-3 rounded-xl font-black text-sm tracking-widest uppercase transition-all border ${
+            justFinished
+              ? 'bg-green-600/20 border-green-500/40 text-green-300'
+              : 'bg-[#0d1526] border-blue-700/40 text-blue-300 hover:border-blue-500 hover:text-blue-200 active:scale-[0.98]'
+          } disabled:opacity-60`}
+        >
+          {finishing ? 'Saving...' : justFinished ? '✓ Session Saved' : 'Finish Workout'}
+        </button>
+      )}
     </div>
   )
 }
