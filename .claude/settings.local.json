@@ -3,7 +3,10 @@
     "allow": [
       "Bash(npm install *)",
       "Bash(sudo rm *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)"
     ]
   }
 }

@@ -69,13 +69,25 @@ export default function OneRMModal({ onClose }) {
             </div>
 
             <div className="space-y-1.5">
-              <p className="text-blue-300/40 text-xs font-semibold uppercase tracking-widest mb-2">% Chart</p>
-              {PERCENTAGES.map((pct) => (
-                <div key={pct} className="flex items-center justify-between px-3 py-1.5 bg-[#131f35] rounded-xl">
-                  <span className="text-blue-400/60 text-xs font-semibold">{pct}%</span>
-                  <span className="text-white text-sm font-bold">{Math.round(oneRM * pct / 100)}</span>
-                </div>
-              ))}
+              <div className="grid grid-cols-[40px_1fr_1fr] gap-3 px-3 mb-2">
+                <span className="text-blue-300/40 text-[10px] font-bold uppercase tracking-widest">%</span>
+                <span className="text-blue-300/40 text-[10px] font-bold uppercase tracking-widest text-right">Barbell</span>
+                <span className="text-blue-300/40 text-[10px] font-bold uppercase tracking-widest text-right">DB ea.</span>
+              </div>
+              {PERCENTAGES.map((pct) => {
+                const barbell = oneRM * pct / 100
+                const dbPerHand = barbell * 0.40
+                return (
+                  <div key={pct} className="grid grid-cols-[40px_1fr_1fr] gap-3 px-3 py-1.5 bg-[#131f35] rounded-xl items-center">
+                    <span className="text-blue-400/60 text-xs font-semibold">{pct}%</span>
+                    <span className="text-white text-sm font-bold text-right tabular-nums">{Math.round(barbell)}</span>
+                    <span className="text-blue-300/70 text-sm font-bold text-right tabular-nums">{Math.round(dbPerHand * 2) / 2}</span>
+                  </div>
+                )
+              })}
+              <p className="text-blue-400/30 text-[10px] mt-2 px-1 leading-relaxed">
+                * DB equivalent ≈ 80% of barbell total (~20% lighter), split per hand. Rough estimate.
+              </p>
             </div>
           </>
         ) : (
