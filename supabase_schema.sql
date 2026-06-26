@@ -54,3 +54,17 @@ create policy "Public access" on session_logs for all using (true) with check (t
 
 -- Also add paused to sets if not already present
 alter table sets add column if not exists paused boolean default false;
+
+-- Body weight tracker (weekly weigh-ins + trend)
+create table if not exists body_weight_logs (
+  id uuid default gen_random_uuid() primary key,
+  weight_kg numeric not null,
+  logged_at date not null default current_date,
+  created_at timestamp with time zone default now()
+);
+
+create index if not exists idx_body_weight_logs_logged_at
+  on body_weight_logs(logged_at);
+
+alter table body_weight_logs enable row level security;
+create policy "Public access" on body_weight_logs for all using (true) with check (true);

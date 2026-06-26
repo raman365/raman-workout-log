@@ -6,6 +6,7 @@ import WorkoutDay from './components/WorkoutDay'
 import AddTabModal from './components/AddTabModal'
 import DeleteModal from './components/DeleteModal'
 import OneRMModal from './components/OneRMModal'
+import WeightTrackerModal from './components/WeightTrackerModal'
 import RestTimer from './components/RestTimer'
 
 export default function App() {
@@ -15,6 +16,7 @@ export default function App() {
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [loading, setLoading] = useState(true)
   const [showOneRM, setShowOneRM] = useState(false)
+  const [showWeight, setShowWeight] = useState(false)
   const [rest, setRest] = useState(null)
 
   function startRest(seconds) {
@@ -63,7 +65,7 @@ export default function App() {
 
   return (
     <div className="min-h-svh bg-[#070b14] flex flex-col">
-      <Header onOpenCalc={() => setShowOneRM(true)} />
+      <Header onOpenCalc={() => setShowOneRM(true)} onOpenWeight={() => setShowWeight(true)} />
       <DayPicker
         tabs={tabs}
         activeTab={tabs.find((t) => t.id === activeTabId) || null}
@@ -109,6 +111,8 @@ export default function App() {
       )}
 
       {showOneRM && <OneRMModal onClose={() => setShowOneRM(false)} />}
+
+      {showWeight && <WeightTrackerModal onClose={() => setShowWeight(false)} />}
 
       {rest && (
         <RestTimer
