@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useLockBodyScroll } from '../lib/useLockBodyScroll'
 
-const GOAL_KEY = 'bw_goal_direction'
+const PEOPLE = ['Raman', 'Kristin']
+const PERSON_KEY = 'bw_person'
+const goalKey = (person) => `bw_goal_${person}`
 
 function todayStr() {
   const d = new Date()
@@ -83,7 +85,8 @@ export default function WeightTrackerModal({ onClose }) {
   const [loading, setLoading] = useState(true)
   const [weight, setWeight] = useState('')
   const [date, setDate] = useState(todayStr())
-  const [goal, setGoal] = useState(() => localStorage.getItem(GOAL_KEY) || 'cut')
+  const [person, setPerson] = useState(() => localStorage.getItem(PERSON_KEY) || 'Raman')
+  const [goal, setGoal] = useState(() => localStorage.getItem(goalKey(localStorage.getItem(PERSON_KEY) || 'Raman')) || 'cut')
   const [saving, setSaving] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [editWeight, setEditWeight] = useState('')
@@ -92,18 +95,25 @@ export default function WeightTrackerModal({ onClose }) {
 
   useLockBodyScroll()
 
+  // Switching person: remember it, load that person's goal, reset edit state, refetch
   useEffect(() => {
+    localStorage.setItem(PERSON_KEY, person)
+    setGoal(localStorage.getItem(goalKey(person)) || 'cut')
+    setEditingId(null)
+    setConfirmDeleteId(null)
+    setLoading(true)
     fetchLogs()
-  }, [])
+  }, [person])
 
   useEffect(() => {
-    localStorage.setItem(GOAL_KEY, goal)
-  }, [goal])
+    localStorage.setItem(goalKey(person), goal)
+  }, [goal, person])
 
   async function fetchLogs() {
     const { data, error } = await supabase
       .from('body_weight_logs')
       .select('*')
+      .eq('person', person)
       .order('logged_at', { ascending: true })
       .order('created_at', { ascending: true })
     if (!error && data) setLogs(data)
@@ -116,7 +126,7 @@ export default function WeightTrackerModal({ onClose }) {
     setSaving(true)
     const { error } = await supabase
       .from('body_weight_logs')
-      .insert({ weight_kg: w, logged_at: date })
+      .insert({ weight_kg: w, logged_at: date, person })
     if (!error) {
       setWeight('')
       setDate(todayStr())
@@ -182,6 +192,23 @@ export default function WeightTrackerModal({ onClose }) {
             <p className="text-blue-400/40 text-xs mt-0.5">Weekly weigh-ins &amp; trend</p>
           </div>
           <button onClick={onClose} className="text-blue-400/40 hover:text-blue-400 text-xl transition-colors">✕</button>
+        </div>
+
+        {/* Person tabs */}
+        <div className="flex bg-[#131f35] rounded-xl p-1 mb-5 border border-blue-900/30">
+          {PEOPLE.map((p) => (
+            <button
+              key={p}
+              onClick={() => setPerson(p)}
+              className={`flex-1 py-2.5 rounded-lg text-sm font-bold tracking-wider transition-all ${
+                person === p
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                  : 'text-blue-300/40 hover:text-blue-300'
+              }`}
+            >
+              {p}
+            </button>
+          ))}
         </div>
 
         {/* Add entry */}
