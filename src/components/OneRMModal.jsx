@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useLockBodyScroll } from '../lib/useLockBodyScroll'
 
 function epley(weight, reps) {
   if (!weight || !reps || reps < 1) return null
@@ -12,6 +13,8 @@ export default function OneRMModal({ onClose }) {
   const [weight, setWeight] = useState('')
   const [reps, setReps] = useState('')
 
+  useLockBodyScroll()
+
   const w = parseFloat(weight)
   const r = parseInt(reps)
   const oneRM = epley(w, r)
@@ -22,7 +25,7 @@ export default function OneRMModal({ onClose }) {
       onClick={onClose}
     >
       <div
-        className="w-full max-w-sm bg-[#0d1526] border border-blue-900/30 rounded-2xl p-6 max-h-[80vh] overflow-y-auto"
+        className="w-full max-w-sm bg-[#0d1526] border border-blue-900/30 rounded-2xl p-6 max-h-[80vh] overflow-y-auto overscroll-contain"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-5">

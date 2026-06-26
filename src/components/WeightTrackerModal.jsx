@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { useLockBodyScroll } from '../lib/useLockBodyScroll'
 
 const GOAL_KEY = 'bw_goal_direction'
 
@@ -89,6 +90,8 @@ export default function WeightTrackerModal({ onClose }) {
   const [editDate, setEditDate] = useState('')
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
 
+  useLockBodyScroll()
+
   useEffect(() => {
     fetchLogs()
   }, [])
@@ -168,7 +171,7 @@ export default function WeightTrackerModal({ onClose }) {
       onClick={onClose}
     >
       <div
-        className="w-full max-w-sm bg-[#0d1526] border border-blue-900/30 rounded-2xl p-6 max-h-[85vh] overflow-y-auto"
+        className="w-full max-w-sm bg-[#0d1526] border border-blue-900/30 rounded-2xl p-6 max-h-[85vh] overflow-y-auto overscroll-contain"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-5">
