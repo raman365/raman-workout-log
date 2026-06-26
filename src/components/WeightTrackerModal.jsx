@@ -6,6 +6,61 @@ const PEOPLE = ['Raman', 'Kristin']
 const PERSON_KEY = 'bw_person'
 const goalKey = (person) => `bw_goal_${person}`
 
+// Per-person colour scheme. Class strings are written out in full so Tailwind
+// picks them up at build time (no dynamic `bg-${x}` interpolation).
+const THEMES = {
+  Raman: {
+    accent: 'blue',
+    surface: 'bg-[#0d1526]',
+    surfaceHex: '#0d1526',
+    field: 'bg-[#131f35]',
+    fieldFocus: 'focus:bg-[#1a2a45]',
+    border: 'border-blue-900/30',
+    focusBorder: 'focus:border-blue-500',
+    divider: 'border-blue-900/30',
+    accentGrad: 'bg-gradient-to-r from-blue-600 to-blue-500',
+    accentHover: 'hover:from-blue-500 hover:to-blue-400',
+    accentShadow: 'shadow-blue-600/20',
+    accentText: 'text-blue-400',
+    accentTextHover: 'hover:text-blue-400',
+    muted: 'text-blue-300/40',
+    muted50: 'text-blue-300/50',
+    muted30: 'text-blue-300/30',
+    muted20: 'text-blue-300/20',
+    mutedHover: 'hover:text-blue-300',
+    rowText: 'text-blue-200/70',
+    summary: 'bg-blue-600/10 border-blue-600/30',
+    clearBtn: 'bg-blue-900/40 text-blue-300/60',
+    chartStroke: '#3b82f6',
+    chartDot: '#60a5fa',
+  },
+  Kristin: {
+    accent: 'pink',
+    surface: 'bg-[#1a0d18]',
+    surfaceHex: '#1a0d18',
+    field: 'bg-[#2a1320]',
+    fieldFocus: 'focus:bg-[#3a1a2c]',
+    border: 'border-pink-900/40',
+    focusBorder: 'focus:border-pink-500',
+    divider: 'border-pink-900/40',
+    accentGrad: 'bg-gradient-to-r from-pink-600 to-fuchsia-500',
+    accentHover: 'hover:from-pink-500 hover:to-fuchsia-400',
+    accentShadow: 'shadow-pink-600/30',
+    accentText: 'text-pink-400',
+    accentTextHover: 'hover:text-pink-400',
+    muted: 'text-pink-300/40',
+    muted50: 'text-pink-300/50',
+    muted30: 'text-pink-300/30',
+    muted20: 'text-pink-300/20',
+    mutedHover: 'hover:text-pink-300',
+    rowText: 'text-pink-200/70',
+    summary: 'bg-pink-600/10 border-pink-600/30',
+    clearBtn: 'bg-pink-900/40 text-pink-300/60',
+    chartStroke: '#ec4899',
+    chartDot: '#f9a8d4',
+  },
+}
+
 function todayStr() {
   const d = new Date()
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10)
@@ -20,14 +75,15 @@ function fmtDelta(delta) {
   return `${delta > 0 ? '+' : ''}${delta.toFixed(1)} kg`
 }
 
-// goal 'cut' => losing weight is good (green); goal 'bulk' => gaining is good
-function deltaColor(delta, goal) {
-  if (delta === 0) return 'text-blue-300/40'
+// goal 'cut' => losing weight is good (green); goal 'bulk' => gaining is good.
+// Green/red are universal; the no-change case uses the theme's muted colour.
+function deltaColor(delta, goal, neutral) {
+  if (delta === 0) return neutral
   const good = goal === 'cut' ? delta < 0 : delta > 0
   return good ? 'text-green-400' : 'text-red-400'
 }
 
-function TrendChart({ logs }) {
+function TrendChart({ logs, theme }) {
   if (logs.length < 2) return null
 
   const W = 320
@@ -47,30 +103,31 @@ function TrendChart({ logs }) {
 
   const line = points.map(([x, y]) => `${x},${y}`).join(' ')
   const area = `${padX},${H - padY} ${line} ${W - padX},${H - padY}`
+  const gradId = `bwFill-${theme.accent}`
 
   return (
-    <div className="bg-[#131f35] rounded-2xl p-3 mb-4">
+    <div className={`${theme.field} rounded-2xl p-3 mb-4`}>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" preserveAspectRatio="none">
         <defs>
-          <linearGradient id="bwFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.25" />
-            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={theme.chartStroke} stopOpacity="0.25" />
+            <stop offset="100%" stopColor={theme.chartStroke} stopOpacity="0" />
           </linearGradient>
         </defs>
-        <polygon points={area} fill="url(#bwFill)" />
+        <polygon points={area} fill={`url(#${gradId})`} />
         <polyline
           points={line}
           fill="none"
-          stroke="#3b82f6"
+          stroke={theme.chartStroke}
           strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
         />
         {points.map(([x, y], i) => (
-          <circle key={i} cx={x} cy={y} r="2.5" fill="#0d1526" stroke="#60a5fa" strokeWidth="1.5" />
+          <circle key={i} cx={x} cy={y} r="2.5" fill={theme.surfaceHex} stroke={theme.chartDot} strokeWidth="1.5" />
         ))}
       </svg>
-      <div className="flex justify-between text-[10px] font-semibold text-blue-300/40 mt-1 px-1">
+      <div className={`flex justify-between text-[10px] font-semibold ${theme.muted} mt-1 px-1`}>
         <span>{fmtDate(logs[0].logged_at)}</span>
         <span className="tabular-nums">{min === max ? `${min}` : `${min} – ${max} kg`}</span>
         <span>{fmtDate(logs[logs.length - 1].logged_at)}</span>
@@ -92,32 +149,47 @@ export default function WeightTrackerModal({ onClose }) {
   const [editWeight, setEditWeight] = useState('')
   const [editDate, setEditDate] = useState('')
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  const t = THEMES[person] ?? THEMES.Raman
+  const refresh = () => setRefreshKey((k) => k + 1)
 
   useLockBodyScroll()
-
-  // Switching person: remember it, load that person's goal, reset edit state, refetch
-  useEffect(() => {
-    localStorage.setItem(PERSON_KEY, person)
-    setGoal(localStorage.getItem(goalKey(person)) || 'cut')
-    setEditingId(null)
-    setConfirmDeleteId(null)
-    setLoading(true)
-    fetchLogs()
-  }, [person])
 
   useEffect(() => {
     localStorage.setItem(goalKey(person), goal)
   }, [goal, person])
 
-  async function fetchLogs() {
-    const { data, error } = await supabase
-      .from('body_weight_logs')
-      .select('*')
-      .eq('person', person)
-      .order('logged_at', { ascending: true })
-      .order('created_at', { ascending: true })
-    if (!error && data) setLogs(data)
-    setLoading(false)
+  // Load logs for the selected person; re-runs on person change and after any
+  // mutation (refreshKey bump). Self-contained so no setState escapes the effect.
+  useEffect(() => {
+    let active = true
+    ;(async () => {
+      const { data, error } = await supabase
+        .from('body_weight_logs')
+        .select('*')
+        .eq('person', person)
+        .order('logged_at', { ascending: true })
+        .order('created_at', { ascending: true })
+      if (!active) return
+      if (!error && data) setLogs(data)
+      setLoading(false)
+    })()
+    return () => {
+      active = false
+    }
+  }, [person, refreshKey])
+
+  // Switching person: remember it, load their goal, reset edit state. The effect
+  // above refetches. Done here (not in an effect) to avoid sync setState.
+  function selectPerson(p) {
+    if (p === person) return
+    localStorage.setItem(PERSON_KEY, p)
+    setGoal(localStorage.getItem(goalKey(p)) || 'cut')
+    setEditingId(null)
+    setConfirmDeleteId(null)
+    setLoading(true)
+    setPerson(p)
   }
 
   async function addEntry() {
@@ -130,7 +202,7 @@ export default function WeightTrackerModal({ onClose }) {
     if (!error) {
       setWeight('')
       setDate(todayStr())
-      await fetchLogs()
+      refresh()
     }
     setSaving(false)
   }
@@ -151,7 +223,7 @@ export default function WeightTrackerModal({ onClose }) {
       .eq('id', editingId)
     if (!error) {
       setEditingId(null)
-      await fetchLogs()
+      refresh()
     }
   }
 
@@ -159,7 +231,7 @@ export default function WeightTrackerModal({ onClose }) {
     const { error } = await supabase.from('body_weight_logs').delete().eq('id', id)
     if (!error) {
       setConfirmDeleteId(null)
-      await fetchLogs()
+      refresh()
     }
   }
 
@@ -169,8 +241,7 @@ export default function WeightTrackerModal({ onClose }) {
   const lastChange = latest && prev ? Number(latest.weight_kg) - Number(prev.weight_kg) : null
   const totalChange = latest && first && first !== latest ? Number(latest.weight_kg) - Number(first.weight_kg) : null
 
-  const inputClass =
-    'w-full bg-[#131f35] border border-blue-900/30 rounded-xl px-3 py-3 text-white text-center text-sm font-semibold focus:outline-none focus:border-blue-500 focus:bg-[#1a2a45] transition-colors'
+  const inputClass = `w-full ${t.field} border ${t.border} rounded-xl px-3 py-3 text-white text-center text-sm font-semibold focus:outline-none ${t.focusBorder} ${t.fieldFocus} transition-colors`
   // iOS native date inputs ignore text-align/padding and overflow flex columns
   // without these; appearance-none + min-w-0 keeps it aligned with the weight field
   const dateInputClass = `${inputClass} appearance-none min-w-0 leading-none`
@@ -181,7 +252,7 @@ export default function WeightTrackerModal({ onClose }) {
       onClick={onClose}
     >
       <div
-        className="w-full max-w-sm bg-[#0d1526] border border-blue-900/30 rounded-2xl p-6 max-h-[85vh] overflow-y-auto overscroll-contain"
+        className={`w-full max-w-sm ${t.surface} border ${t.border} rounded-2xl p-6 max-h-[85vh] overflow-y-auto overscroll-contain transition-colors`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-5">
@@ -189,32 +260,36 @@ export default function WeightTrackerModal({ onClose }) {
             <h2 className="text-white font-black text-lg tracking-wide" style={{ fontFamily: 'Orbitron, sans-serif' }}>
               BODY WEIGHT
             </h2>
-            <p className="text-blue-400/40 text-xs mt-0.5">Weekly weigh-ins &amp; trend</p>
+            <p className={`${t.accentText} opacity-50 text-xs mt-0.5`}>Weekly weigh-ins &amp; trend</p>
           </div>
-          <button onClick={onClose} className="text-blue-400/40 hover:text-blue-400 text-xl transition-colors">✕</button>
+          <button onClick={onClose} className={`${t.muted} ${t.accentTextHover} text-xl transition-colors`}>✕</button>
         </div>
 
         {/* Person tabs */}
-        <div className="flex bg-[#131f35] rounded-xl p-1 mb-5 border border-blue-900/30">
-          {PEOPLE.map((p) => (
-            <button
-              key={p}
-              onClick={() => setPerson(p)}
-              className={`flex-1 py-2.5 rounded-lg text-sm font-bold tracking-wider transition-all ${
-                person === p
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-                  : 'text-blue-300/40 hover:text-blue-300'
-              }`}
-            >
-              {p}
-            </button>
-          ))}
+        <div className={`flex ${t.field} rounded-xl p-1 mb-5 border ${t.border}`}>
+          {PEOPLE.map((p) => {
+            const pt = THEMES[p]
+            const active = person === p
+            return (
+              <button
+                key={p}
+                onClick={() => selectPerson(p)}
+                className={`flex-1 py-2.5 rounded-lg text-sm font-bold tracking-wider transition-all ${
+                  active
+                    ? `${pt.accentGrad} text-white shadow-lg ${pt.accentShadow}`
+                    : `${t.muted} ${t.mutedHover}`
+                }`}
+              >
+                {p}
+              </button>
+            )
+          })}
         </div>
 
         {/* Add entry */}
         <div className="flex gap-3 mb-3">
           <div className="flex-1 min-w-0">
-            <label className="text-blue-300/40 text-xs font-semibold uppercase tracking-widest block mb-1.5">Weight (kg)</label>
+            <label className={`${t.muted} text-xs font-semibold uppercase tracking-widest block mb-1.5`}>Weight (kg)</label>
             <div className="relative">
               <input
                 type="text"
@@ -229,7 +304,7 @@ export default function WeightTrackerModal({ onClose }) {
                 <button
                   onClick={() => setWeight('')}
                   aria-label="Clear weight"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded-full bg-blue-900/40 text-blue-300/60 hover:text-white text-xs leading-none"
+                  className={`absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded-full ${t.clearBtn} hover:text-white text-xs leading-none`}
                 >
                   ✕
                 </button>
@@ -237,7 +312,7 @@ export default function WeightTrackerModal({ onClose }) {
             </div>
           </div>
           <div className="flex-1 min-w-0">
-            <label className="text-blue-300/40 text-xs font-semibold uppercase tracking-widest block mb-1.5">Date</label>
+            <label className={`${t.muted} text-xs font-semibold uppercase tracking-widest block mb-1.5`}>Date</label>
             <input
               type="date"
               value={date}
@@ -250,21 +325,21 @@ export default function WeightTrackerModal({ onClose }) {
         <button
           onClick={addEntry}
           disabled={!parseFloat(weight) || saving}
-          className="w-full py-3 mb-5 bg-blue-600 hover:bg-blue-500 disabled:bg-[#131f35] disabled:text-blue-300/20 text-white rounded-xl font-bold text-sm tracking-widest uppercase active:scale-[0.98] transition-all shadow-lg shadow-blue-600/20 disabled:shadow-none"
+          className={`w-full py-3 mb-5 ${t.accentGrad} ${t.accentHover} text-white rounded-xl font-bold text-sm tracking-widest uppercase active:scale-[0.98] transition-all shadow-lg ${t.accentShadow} disabled:opacity-40 disabled:shadow-none disabled:cursor-not-allowed`}
         >
           {saving ? 'Saving…' : 'Log Weight'}
         </button>
 
         {/* Goal direction toggle */}
         <div className="flex items-center justify-between mb-4">
-          <span className="text-blue-300/40 text-[10px] font-bold uppercase tracking-widest">Goal</span>
-          <div className="flex bg-[#131f35] rounded-xl p-0.5 border border-blue-900/30">
+          <span className={`${t.muted} text-[10px] font-bold uppercase tracking-widest`}>Goal</span>
+          <div className={`flex ${t.field} rounded-xl p-0.5 border ${t.border}`}>
             {['cut', 'bulk'].map((g) => (
               <button
                 key={g}
                 onClick={() => setGoal(g)}
                 className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
-                  goal === g ? 'bg-blue-600 text-white' : 'text-blue-300/40 hover:text-blue-300'
+                  goal === g ? `${t.accentGrad} text-white` : `${t.muted} ${t.mutedHover}`
                 }`}
               >
                 {g}
@@ -274,39 +349,39 @@ export default function WeightTrackerModal({ onClose }) {
         </div>
 
         {loading ? (
-          <div className="text-center py-8 text-blue-300/20 text-sm font-semibold">Loading…</div>
+          <div className={`text-center py-8 ${t.muted20} text-sm font-semibold`}>Loading…</div>
         ) : logs.length === 0 ? (
-          <div className="text-center py-8 text-blue-300/20 text-sm font-semibold">
-            Log your first weigh-in above
+          <div className={`text-center py-8 ${t.muted20} text-sm font-semibold`}>
+            Log {person}'s first weigh-in above
           </div>
         ) : (
           <>
             {/* Summary */}
-            <div className="bg-blue-600/10 border border-blue-600/30 rounded-2xl px-4 py-4 text-center mb-4">
-              <p className="text-blue-300/50 text-xs font-semibold uppercase tracking-widest mb-1">Current</p>
+            <div className={`${t.summary} border rounded-2xl px-4 py-4 text-center mb-4`}>
+              <p className={`${t.muted50} text-xs font-semibold uppercase tracking-widest mb-1`}>Current</p>
               <p className="text-white text-4xl font-black tracking-tight tabular-nums">{Number(latest.weight_kg)}</p>
-              <p className="text-blue-400/40 text-xs mt-1">kg · {fmtDate(latest.logged_at)}</p>
-              <div className="flex justify-center gap-5 mt-3 pt-3 border-t border-blue-900/30">
+              <p className={`${t.muted} text-xs mt-1`}>kg · {fmtDate(latest.logged_at)}</p>
+              <div className={`flex justify-center gap-5 mt-3 pt-3 border-t ${t.divider}`}>
                 <div>
-                  <p className="text-blue-300/40 text-[10px] font-bold uppercase tracking-widest mb-0.5">Since last</p>
-                  <p className={`text-sm font-bold tabular-nums ${lastChange === null ? 'text-blue-300/30' : deltaColor(lastChange, goal)}`}>
+                  <p className={`${t.muted} text-[10px] font-bold uppercase tracking-widest mb-0.5`}>Since last</p>
+                  <p className={`text-sm font-bold tabular-nums ${lastChange === null ? t.muted30 : deltaColor(lastChange, goal, t.muted)}`}>
                     {lastChange === null ? '—' : fmtDelta(lastChange)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-blue-300/40 text-[10px] font-bold uppercase tracking-widest mb-0.5">Since start</p>
-                  <p className={`text-sm font-bold tabular-nums ${totalChange === null ? 'text-blue-300/30' : deltaColor(totalChange, goal)}`}>
+                  <p className={`${t.muted} text-[10px] font-bold uppercase tracking-widest mb-0.5`}>Since start</p>
+                  <p className={`text-sm font-bold tabular-nums ${totalChange === null ? t.muted30 : deltaColor(totalChange, goal, t.muted)}`}>
                     {totalChange === null ? '—' : fmtDelta(totalChange)}
                   </p>
                 </div>
               </div>
             </div>
 
-            <TrendChart logs={logs} />
+            <TrendChart logs={logs} theme={t} />
 
             {/* History (newest first) */}
             <div className="space-y-1.5">
-              <p className="text-blue-300/40 text-[10px] font-bold uppercase tracking-widest px-1 mb-2">History</p>
+              <p className={`${t.muted} text-[10px] font-bold uppercase tracking-widest px-1 mb-2`}>History</p>
               {logs
                 .map((log, i) => ({ log, prevWeight: i > 0 ? Number(logs[i - 1].weight_kg) : null }))
                 .reverse()
@@ -314,33 +389,33 @@ export default function WeightTrackerModal({ onClose }) {
                   const delta = prevWeight === null ? null : Number(log.weight_kg) - prevWeight
                   if (editingId === log.id) {
                     return (
-                      <div key={log.id} className="bg-[#131f35] rounded-xl p-2 flex items-center gap-2">
+                      <div key={log.id} className={`${t.field} rounded-xl p-2 flex items-center gap-2`}>
                         <input
                           type="text"
                           inputMode="decimal"
                           value={editWeight}
                           onChange={(e) => setEditWeight(e.target.value)}
-                          className="w-16 bg-[#0d1526] border border-blue-900/30 rounded-lg px-2 py-2 text-white text-center text-sm font-semibold focus:outline-none focus:border-blue-500"
+                          className={`w-16 ${t.surface} border ${t.border} rounded-lg px-2 py-2 text-white text-center text-sm font-semibold focus:outline-none ${t.focusBorder}`}
                         />
                         <input
                           type="date"
                           value={editDate}
                           max={todayStr()}
                           onChange={(e) => setEditDate(e.target.value)}
-                          className="flex-1 min-w-0 appearance-none bg-[#0d1526] border border-blue-900/30 rounded-lg px-2 py-2 text-white text-center text-xs font-semibold focus:outline-none focus:border-blue-500"
+                          className={`flex-1 min-w-0 appearance-none ${t.surface} border ${t.border} rounded-lg px-2 py-2 text-white text-center text-xs font-semibold focus:outline-none ${t.focusBorder}`}
                         />
                         <button onClick={saveEdit} className="text-green-400 hover:text-green-300 px-1.5 text-lg">✓</button>
-                        <button onClick={() => setEditingId(null)} className="text-blue-400/40 hover:text-blue-400 px-1.5 text-lg">✕</button>
+                        <button onClick={() => setEditingId(null)} className={`${t.muted} ${t.accentTextHover} px-1.5 text-lg`}>✕</button>
                       </div>
                     )
                   }
                   return (
-                    <div key={log.id} className="grid grid-cols-[1fr_auto_auto] gap-3 px-3 py-2.5 bg-[#131f35] rounded-xl items-center">
-                      <span className="text-blue-200/70 text-sm font-semibold">{fmtDate(log.logged_at)}</span>
+                    <div key={log.id} className={`grid grid-cols-[1fr_auto_auto] gap-3 px-3 py-2.5 ${t.field} rounded-xl items-center`}>
+                      <span className={`${t.rowText} text-sm font-semibold`}>{fmtDate(log.logged_at)}</span>
                       <div className="flex items-baseline gap-2 justify-end">
                         <span className="text-white text-sm font-bold tabular-nums">{Number(log.weight_kg)} kg</span>
                         {delta !== null && delta !== 0 && (
-                          <span className={`text-[11px] font-bold tabular-nums ${deltaColor(delta, goal)}`}>
+                          <span className={`text-[11px] font-bold tabular-nums ${deltaColor(delta, goal, t.muted)}`}>
                             {fmtDelta(delta)}
                           </span>
                         )}
@@ -348,12 +423,12 @@ export default function WeightTrackerModal({ onClose }) {
                       {confirmDeleteId === log.id ? (
                         <div className="flex items-center gap-1">
                           <button onClick={() => deleteEntry(log.id)} className="text-red-400 hover:text-red-300 text-xs font-bold px-1">Delete</button>
-                          <button onClick={() => setConfirmDeleteId(null)} className="text-blue-400/40 hover:text-blue-400 text-sm px-1">✕</button>
+                          <button onClick={() => setConfirmDeleteId(null)} className={`${t.muted} ${t.accentTextHover} text-sm px-1`}>✕</button>
                         </div>
                       ) : (
                         <div className="flex items-center gap-2">
-                          <button onClick={() => startEdit(log)} className="text-blue-400/40 hover:text-blue-400 text-sm transition-colors">✎</button>
-                          <button onClick={() => { setEditingId(null); setConfirmDeleteId(log.id) }} className="text-blue-400/30 hover:text-red-400 text-sm transition-colors">🗑</button>
+                          <button onClick={() => startEdit(log)} className={`${t.muted} ${t.accentTextHover} text-sm transition-colors`}>✎</button>
+                          <button onClick={() => { setEditingId(null); setConfirmDeleteId(log.id) }} className={`${t.muted30} hover:text-red-400 text-sm transition-colors`}>🗑</button>
                         </div>
                       )}
                     </div>
