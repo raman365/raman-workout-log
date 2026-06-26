@@ -158,6 +158,9 @@ export default function WeightTrackerModal({ onClose }) {
 
   const inputClass =
     'w-full bg-[#131f35] border border-blue-900/30 rounded-xl px-3 py-3 text-white text-center text-sm font-semibold focus:outline-none focus:border-blue-500 focus:bg-[#1a2a45] transition-colors'
+  // iOS native date inputs ignore text-align/padding and overflow flex columns
+  // without these; appearance-none + min-w-0 keeps it aligned with the weight field
+  const dateInputClass = `${inputClass} appearance-none min-w-0 leading-none`
 
   return (
     <div
@@ -180,26 +183,37 @@ export default function WeightTrackerModal({ onClose }) {
 
         {/* Add entry */}
         <div className="flex gap-3 mb-3">
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <label className="text-blue-300/40 text-xs font-semibold uppercase tracking-widest block mb-1.5">Weight (kg)</label>
-            <input
-              type="text"
-              inputMode="decimal"
-              value={weight}
-              onChange={(e) => setWeight(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && addEntry()}
-              placeholder="e.g. 82.4"
-              className={inputClass}
-            />
+            <div className="relative">
+              <input
+                type="text"
+                inputMode="decimal"
+                value={weight}
+                onChange={(e) => setWeight(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && addEntry()}
+                placeholder="e.g. 82.4"
+                className={`${inputClass} pr-8`}
+              />
+              {weight && (
+                <button
+                  onClick={() => setWeight('')}
+                  aria-label="Clear weight"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded-full bg-blue-900/40 text-blue-300/60 hover:text-white text-xs leading-none"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
           </div>
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <label className="text-blue-300/40 text-xs font-semibold uppercase tracking-widest block mb-1.5">Date</label>
             <input
               type="date"
               value={date}
               max={todayStr()}
               onChange={(e) => setDate(e.target.value)}
-              className={inputClass}
+              className={dateInputClass}
             />
           </div>
         </div>
@@ -283,7 +297,7 @@ export default function WeightTrackerModal({ onClose }) {
                           value={editDate}
                           max={todayStr()}
                           onChange={(e) => setEditDate(e.target.value)}
-                          className="flex-1 bg-[#0d1526] border border-blue-900/30 rounded-lg px-2 py-2 text-white text-center text-xs font-semibold focus:outline-none focus:border-blue-500"
+                          className="flex-1 min-w-0 appearance-none bg-[#0d1526] border border-blue-900/30 rounded-lg px-2 py-2 text-white text-center text-xs font-semibold focus:outline-none focus:border-blue-500"
                         />
                         <button onClick={saveEdit} className="text-green-400 hover:text-green-300 px-1.5 text-lg">✓</button>
                         <button onClick={() => setEditingId(null)} className="text-blue-400/40 hover:text-blue-400 px-1.5 text-lg">✕</button>
