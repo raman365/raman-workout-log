@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useLockBodyScroll } from '../lib/useLockBodyScroll'
+import { todayStr, fmtDate } from '../lib/lifts'
+import TrendChart from './TrendChart'
 
 const PEOPLE = ['Raman', 'Kristin']
 const PERSON_KEY = 'bw_person'
@@ -61,16 +63,6 @@ const THEMES = {
   },
 }
 
-function todayStr() {
-  const d = new Date()
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10)
-}
-
-function fmtDate(s) {
-  const [y, m, d] = s.split('-').map(Number)
-  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
-
 function fmtDelta(delta) {
   return `${delta > 0 ? '+' : ''}${delta.toFixed(1)} kg`
 }
@@ -83,57 +75,26 @@ function deltaColor(delta, goal, neutral) {
   return good ? 'text-green-400' : 'text-red-400'
 }
 
-function TrendChart({ logs, theme }) {
+// Trend over the last 4 weeks in kg/week (least-squares slope), so a single
+// heavy or light weigh-in doesn't swing it the way "since last" does.
+// Needs at least a week of data to say anything useful.
+function weeklyRate(logs) {
+  const day = (s) => Date.parse(s + 'T00:00:00Z') / 86400000
   if (logs.length < 2) return null
-
-  const W = 320
-  const H = 120
-  const padX = 10
-  const padY = 14
-  const weights = logs.map((l) => Number(l.weight_kg))
-  const min = Math.min(...weights)
-  const max = Math.max(...weights)
-  const range = max - min || 1
-
-  const points = logs.map((l, i) => {
-    const x = padX + (i / (logs.length - 1)) * (W - padX * 2)
-    const y = padY + (1 - (Number(l.weight_kg) - min) / range) * (H - padY * 2)
-    return [x, y]
+  const end = day(logs[logs.length - 1].logged_at)
+  const recent = logs.filter((l) => end - day(l.logged_at) <= 28)
+  const xs = recent.map((l) => day(l.logged_at))
+  if (recent.length < 2 || end - xs[0] < 7) return null
+  const ys = recent.map((l) => Number(l.weight_kg))
+  const mx = xs.reduce((a, b) => a + b, 0) / xs.length
+  const my = ys.reduce((a, b) => a + b, 0) / ys.length
+  let num = 0
+  let den = 0
+  xs.forEach((x, i) => {
+    num += (x - mx) * (ys[i] - my)
+    den += (x - mx) ** 2
   })
-
-  const line = points.map(([x, y]) => `${x},${y}`).join(' ')
-  const area = `${padX},${H - padY} ${line} ${W - padX},${H - padY}`
-  const gradId = `bwFill-${theme.accent}`
-
-  return (
-    <div className={`${theme.field} rounded-2xl p-3 mb-4`}>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" preserveAspectRatio="none">
-        <defs>
-          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={theme.chartStroke} stopOpacity="0.25" />
-            <stop offset="100%" stopColor={theme.chartStroke} stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <polygon points={area} fill={`url(#${gradId})`} />
-        <polyline
-          points={line}
-          fill="none"
-          stroke={theme.chartStroke}
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        {points.map(([x, y], i) => (
-          <circle key={i} cx={x} cy={y} r="2.5" fill={theme.surfaceHex} stroke={theme.chartDot} strokeWidth="1.5" />
-        ))}
-      </svg>
-      <div className={`flex justify-between text-[10px] font-semibold ${theme.muted} mt-1 px-1`}>
-        <span>{fmtDate(logs[0].logged_at)}</span>
-        <span className="tabular-nums">{min === max ? `${min}` : `${min} – ${max} kg`}</span>
-        <span>{fmtDate(logs[logs.length - 1].logged_at)}</span>
-      </div>
-    </div>
-  )
+  return den ? Math.round((num / den) * 7 * 10) / 10 : null
 }
 
 export default function WeightTrackerModal({ onClose }) {
@@ -240,6 +201,7 @@ export default function WeightTrackerModal({ onClose }) {
   const first = logs[0]
   const lastChange = latest && prev ? Number(latest.weight_kg) - Number(prev.weight_kg) : null
   const totalChange = latest && first && first !== latest ? Number(latest.weight_kg) - Number(first.weight_kg) : null
+  const perWeek = weeklyRate(logs)
 
   const inputClass = `w-full ${t.field} border ${t.border} rounded-xl px-3 py-3 text-white text-center text-sm font-semibold focus:outline-none ${t.focusBorder} ${t.fieldFocus} transition-colors`
   // iOS native date inputs ignore text-align/padding and overflow flex columns
@@ -374,10 +336,20 @@ export default function WeightTrackerModal({ onClose }) {
                     {totalChange === null ? '—' : fmtDelta(totalChange)}
                   </p>
                 </div>
+                <div>
+                  <p className={`${t.muted} text-[10px] font-bold uppercase tracking-widest mb-0.5`}>Per week</p>
+                  <p className={`text-sm font-bold tabular-nums ${perWeek === null ? t.muted30 : deltaColor(perWeek, goal, t.muted)}`}>
+                    {perWeek === null ? '—' : fmtDelta(perWeek)}
+                  </p>
+                </div>
               </div>
             </div>
 
-            <TrendChart logs={logs} theme={t} />
+            <TrendChart
+              data={logs.map((l) => ({ date: l.logged_at, value: Number(l.weight_kg) }))}
+              theme={t}
+              unit=" kg"
+            />
 
             {/* History (newest first) */}
             <div className="space-y-1.5">

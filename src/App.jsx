@@ -8,6 +8,9 @@ import DeleteModal from './components/DeleteModal'
 import OneRMModal from './components/OneRMModal'
 import WeightTrackerModal from './components/WeightTrackerModal'
 import RestTimer from './components/RestTimer'
+import { primeAudio } from './lib/sound'
+
+const ACTIVE_TAB_KEY = 'active_tab'
 
 export default function App() {
   const [tabs, setTabs] = useState([])
@@ -20,24 +23,42 @@ export default function App() {
   const [rest, setRest] = useState(null)
 
   function startRest(seconds) {
+    primeAudio()
     setRest({ endsAt: Date.now() + seconds * 1000, duration: seconds * 1000 })
   }
 
-  useEffect(() => {
-    fetchTabs()
-  }, [])
-
-  async function fetchTabs() {
-    const { data, error } = await supabase
-      .from('workout_tabs')
-      .select('*')
-      .order('position')
-    if (!error && data) {
-      setTabs(data)
-      if (data.length > 0) setActiveTabId(data[0].id)
-    }
-    setLoading(false)
+  function adjustRest(seconds) {
+    setRest((r) => r && {
+      endsAt: r.endsAt + seconds * 1000,
+      duration: Math.max(1000, r.duration + seconds * 1000),
+    })
   }
+
+  // Reopen on the day you were last on, rather than always the first one.
+  function selectTab(id) {
+    setActiveTabId(id)
+    if (id) localStorage.setItem(ACTIVE_TAB_KEY, id)
+  }
+
+  useEffect(() => {
+    let active = true
+    ;(async () => {
+      const { data, error } = await supabase
+        .from('workout_tabs')
+        .select('*')
+        .order('position')
+      if (!active) return
+      if (!error && data) {
+        setTabs(data)
+        const saved = localStorage.getItem(ACTIVE_TAB_KEY)
+        setActiveTabId(data.some((t) => t.id === saved) ? saved : data[0]?.id ?? null)
+      }
+      setLoading(false)
+    })()
+    return () => {
+      active = false
+    }
+  }, [])
 
   async function addTab(name) {
     const position = tabs.length
@@ -48,7 +69,7 @@ export default function App() {
       .single()
     if (!error) {
       setTabs((prev) => [...prev, data])
-      setActiveTabId(data.id)
+      selectTab(data.id)
     }
     setShowAddModal(false)
   }
@@ -57,7 +78,7 @@ export default function App() {
     await supabase.from('workout_tabs').delete().eq('id', id)
     const remaining = tabs.filter((t) => t.id !== id)
     setTabs(remaining)
-    if (activeTabId === id) setActiveTabId(remaining[0]?.id || null)
+    if (activeTabId === id) selectTab(remaining[0]?.id || null)
     setDeleteTarget(null)
   }
 
@@ -69,7 +90,7 @@ export default function App() {
       <DayPicker
         tabs={tabs}
         activeTab={tabs.find((t) => t.id === activeTabId) || null}
-        onSelect={setActiveTabId}
+        onSelect={selectTab}
         onAdd={() => setShowAddModal(true)}
         onDelete={setDeleteTarget}
       />
@@ -118,6 +139,7 @@ export default function App() {
         <RestTimer
           endsAt={rest.endsAt}
           duration={rest.duration}
+          onAdjust={adjustRest}
           onClose={() => setRest(null)}
         />
       )}

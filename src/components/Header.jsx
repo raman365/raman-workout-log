@@ -24,7 +24,7 @@ export default function Header({ onOpenCalc, onOpenWeight }) {
             className="flex flex-col items-center gap-0.5 text-blue-400/50 hover:text-blue-400 active:scale-90 transition-all"
           >
             <span className="text-xl leading-none">⚡</span>
-            <span className="text-[9px] font-bold tracking-widest uppercase">1RM</span>
+            <span className="text-[9px] font-bold tracking-widest uppercase">Calc</span>
           </button>
         </div>
       </div>

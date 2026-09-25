@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import { todayStr } from '../lib/lifts'
 import ExerciseCard from './ExerciseCard'
 
 export default function WorkoutDay({ tab, onStartRest }) {
@@ -12,28 +13,30 @@ export default function WorkoutDay({ tab, onStartRest }) {
   const [historyTick, setHistoryTick] = useState(0)
   const inputRef = useRef(null)
 
+  // App keys this component by tab id, so it remounts per day and the
+  // initial state already covers loading / openId.
   useEffect(() => {
-    setLoading(true)
-    setOpenId(null)
-    fetchExercises()
-  }, [tab.id])
-
-  async function fetchExercises() {
-    const { data, error } = await supabase
-      .from('exercises')
-      .select('*, sets(*)')
-      .eq('tab_id', tab.id)
-      .order('position')
-
-    if (!error) {
-      const sorted = data.map((ex) => ({
-        ...ex,
-        sets: (ex.sets || []).sort((a, b) => a.set_number - b.set_number),
-      }))
-      setExercises(sorted)
+    let active = true
+    ;(async () => {
+      const { data, error } = await supabase
+        .from('exercises')
+        .select('*, sets(*)')
+        .eq('tab_id', tab.id)
+        .order('position')
+      if (!active) return
+      if (!error) {
+        const sorted = data.map((ex) => ({
+          ...ex,
+          sets: (ex.sets || []).sort((a, b) => a.set_number - b.set_number),
+        }))
+        setExercises(sorted)
+      }
+      setLoading(false)
+    })()
+    return () => {
+      active = false
     }
-    setLoading(false)
-  }
+  }, [tab.id])
 
   async function addExercise() {
     const name = newName.trim()
@@ -55,6 +58,29 @@ export default function WorkoutDay({ tab, onStartRest }) {
     setExercises((prev) => prev.filter((e) => e.id !== exerciseId))
   }
 
+  async function renameExercise(exerciseId, name) {
+    setExercises((prev) => prev.map((e) => (e.id === exerciseId ? { ...e, name } : e)))
+    await supabase.from('exercises').update({ name }).eq('id', exerciseId)
+  }
+
+  // Swap with a neighbour, then renumber positions 0..n-1 and write only the
+  // rows that changed (older rows may have gaps from deletions).
+  async function moveExercise(exerciseId, dir) {
+    const i = exercises.findIndex((e) => e.id === exerciseId)
+    const j = i + dir
+    if (i < 0 || j < 0 || j >= exercises.length) return
+    const next = [...exercises]
+    ;[next[i], next[j]] = [next[j], next[i]]
+    const reindexed = next.map((e, idx) => ({ ...e, position: idx }))
+    setExercises(reindexed)
+    const before = new Map(exercises.map((e) => [e.id, e.position]))
+    await Promise.all(
+      reindexed
+        .filter((e) => before.get(e.id) !== e.position)
+        .map((e) => supabase.from('exercises').update({ position: e.position }).eq('id', e.id))
+    )
+  }
+
   function handleSetsChange(exerciseId, sets) {
     setExercises((prev) =>
       prev.map((e) => (e.id === exerciseId ? { ...e, sets } : e))
@@ -63,7 +89,7 @@ export default function WorkoutDay({ tab, onStartRest }) {
 
   async function finishWorkout() {
     setFinishing(true)
-    const today = new Date().toISOString().slice(0, 10)
+    const today = todayStr()
     const exerciseIds = exercises.map((e) => e.id)
 
     if (exerciseIds.length > 0) {
@@ -119,13 +145,18 @@ export default function WorkoutDay({ tab, onStartRest }) {
         </div>
       )}
 
-      {exercises.map((exercise) => (
+      {exercises.map((exercise, i) => (
         <ExerciseCard
           key={exercise.id}
           exercise={exercise}
           isOpen={openId === exercise.id}
           onToggle={() => setOpenId((prev) => (prev === exercise.id ? null : exercise.id))}
           onDelete={() => deleteExercise(exercise.id)}
+          onRename={(name) => renameExercise(exercise.id, name)}
+          onMoveUp={() => moveExercise(exercise.id, -1)}
+          onMoveDown={() => moveExercise(exercise.id, 1)}
+          canMoveUp={i > 0}
+          canMoveDown={i < exercises.length - 1}
           onSetsChange={(sets) => handleSetsChange(exercise.id, sets)}
           historyTick={historyTick}
           onStartRest={onStartRest}

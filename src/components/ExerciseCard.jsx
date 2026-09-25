@@ -1,13 +1,37 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
+import { setE1RM, todayStr, fmtAgo } from '../lib/lifts'
+import { useDebouncedUpdate } from '../lib/useDebouncedUpdate'
 import DeleteModal from './DeleteModal'
+import ExerciseMenu from './ExerciseMenu'
+import ExerciseHistoryModal from './ExerciseHistoryModal'
 
-export default function ExerciseCard({ exercise, isOpen, onToggle, onDelete, onSetsChange, historyTick, onStartRest }) {
+const REST_OPTIONS = [60, 90, 120, 180]
+
+const fmtRest = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+
+export default function ExerciseCard({
+  exercise,
+  isOpen,
+  onToggle,
+  onDelete,
+  onRename,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp,
+  canMoveDown,
+  onSetsChange,
+  historyTick,
+  onStartRest,
+}) {
   const [sets, setSets] = useState(exercise.sets || [])
   const [adding, setAdding] = useState(false)
   const [confirmExercise, setConfirmExercise] = useState(false)
   const [confirmSetId, setConfirmSetId] = useState(null)
-  const [lastSession, setLastSession] = useState(null)
+  const [history, setHistory] = useState([])
+  const [showMenu, setShowMenu] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
+  const saver = useDebouncedUpdate('sets')
 
   useEffect(() => {
     let cancelled = false
@@ -18,38 +42,36 @@ export default function ExerciseCard({ exercise, isOpen, onToggle, onDelete, onS
         .eq('exercise_id', exercise.id)
         .order('session_date', { ascending: false })
         .order('set_number', { ascending: true })
-
-      if (cancelled || !data || data.length === 0) {
-        if (!cancelled) setLastSession(null)
-        return
-      }
-      const latestDate = data[0].session_date
-      const latestSets = data.filter((r) => r.session_date === latestDate)
-      const top = latestSets.reduce((best, s) => {
-        const w = parseFloat(s.weight) || 0
-        const r = parseInt(s.reps) || 0
-        const bw = parseFloat(best?.weight) || 0
-        const br = parseInt(best?.reps) || 0
-        if (w > bw || (w === bw && r > br)) return s
-        return best
-      }, latestSets[0])
-      setLastSession({ date: latestDate, top })
+      if (!cancelled) setHistory(data || [])
     }
     loadHistory()
     return () => { cancelled = true }
   }, [exercise.id, historyTick])
 
-  function formatLastDate(d) {
-    const then = new Date(d + 'T00:00:00')
-    const now = new Date()
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    const days = Math.round((today - then) / 86400000)
-    if (days <= 0) return 'today'
-    if (days === 1) return 'yesterday'
-    if (days < 7) return `${days}d ago`
-    if (days < 30) return `${Math.floor(days / 7)}w ago`
-    return `${Math.floor(days / 30)}mo ago`
-  }
+  const lastSession = useMemo(() => {
+    if (history.length === 0) return null
+    const latestDate = history[0].session_date
+    const latestSets = history.filter((r) => r.session_date === latestDate)
+    const top = latestSets.reduce((best, s) => {
+      const w = parseFloat(s.weight) || 0
+      const r = parseInt(s.reps) || 0
+      const bw = parseFloat(best?.weight) || 0
+      const br = parseInt(best?.reps) || 0
+      if (w > bw || (w === bw && r > br)) return s
+      return best
+    }, latestSets[0])
+    return { date: latestDate, top }
+  }, [history])
+
+  // Best e1RM from earlier sessions. Today's is left out so re-saving a
+  // workout doesn't turn its own sets into the bar to beat.
+  const bestPrevE1RM = useMemo(() => {
+    const today = todayStr()
+    return history.reduce(
+      (best, r) => (r.session_date === today ? best : Math.max(best, setE1RM(r) || 0)),
+      0
+    )
+  }, [history])
 
   async function addSet() {
     setAdding(true)
@@ -67,14 +89,16 @@ export default function ExerciseCard({ exercise, isOpen, onToggle, onDelete, onS
     setAdding(false)
   }
 
-  async function updateSet(setId, field, value) {
-    await supabase.from('sets').update({ [field]: value }).eq('id', setId)
+  // Update the screen immediately; the database write is debounced.
+  function updateSet(setId, field, value) {
     const newSets = sets.map((s) => (s.id === setId ? { ...s, [field]: value } : s))
     setSets(newSets)
     onSetsChange(newSets)
+    saver.queue(setId, { [field]: value })
   }
 
   async function deleteSet(setId) {
+    saver.cancel(setId)
     await supabase.from('sets').delete().eq('id', setId)
     const filtered = sets.filter((s) => s.id !== setId)
     const renumbered = filtered.map((s, i) => ({ ...s, set_number: i + 1 }))
@@ -110,17 +134,30 @@ export default function ExerciseCard({ exercise, isOpen, onToggle, onDelete, onS
               {lastSession && (
                 <div className="text-[11px] text-blue-300/40 font-semibold mt-0.5 tracking-wide">
                   Last: <span className="text-blue-300/70">{lastSession.top.weight} × {lastSession.top.reps}</span>
-                  <span className="text-blue-400/30"> · {formatLastDate(lastSession.date)}</span>
+                  <span className="text-blue-400/30"> · {fmtAgo(lastSession.date)}</span>
                 </div>
               )}
             </div>
           </div>
-          <button
-            onClick={(e) => { e.stopPropagation(); setConfirmExercise(true) }}
-            className="text-red-400/50 hover:text-red-400 transition-colors text-xs px-2 py-1"
-          >
-            Remove
-          </button>
+          <div className="flex items-center shrink-0">
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowHistory(true) }}
+              aria-label="History and PRs"
+              className="text-blue-400/50 hover:text-blue-400 transition-colors px-2 py-1"
+            >
+              <svg viewBox="0 0 20 20" className="w-4.5 h-4.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3,14 8,9 11,12 17,5" />
+                <polyline points="12,5 17,5 17,10" />
+              </svg>
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowMenu(true) }}
+              aria-label="Exercise options"
+              className="text-blue-400/50 hover:text-blue-400 transition-colors text-xl leading-none px-2 py-1"
+            >
+              ⋯
+            </button>
+          </div>
         </div>
 
         {/* Sets */}
@@ -133,43 +170,59 @@ export default function ExerciseCard({ exercise, isOpen, onToggle, onDelete, onS
               <span className="text-center">PAUSE</span>
               <span></span>
             </div>
-            {sets.map((set) => (
-              <div key={set.id} className="grid grid-cols-[52px_1fr_1fr_52px_24px] gap-2 items-center">
-                <span className="text-blue-400 text-sm font-bold tracking-wide">
-                  Set {set.set_number}
-                </span>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={set.weight}
-                  onChange={(e) => updateSet(set.id, 'weight', e.target.value)}
-                  placeholder="—"
-                  className="bg-[#131f35] border border-blue-900/30 rounded-xl px-3 py-2.5 text-white text-center text-sm font-semibold focus:outline-none focus:border-blue-500 focus:bg-[#1a2a45] transition-colors w-full"
-                />
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={set.reps}
-                  onChange={(e) => updateSet(set.id, 'reps', e.target.value)}
-                  placeholder="—"
-                  className="bg-[#131f35] border border-blue-900/30 rounded-xl px-3 py-2.5 text-white text-center text-sm font-semibold focus:outline-none focus:border-blue-500 focus:bg-[#1a2a45] transition-colors w-full"
-                />
-                <div className="flex items-center justify-center">
+            {sets.map((set) => {
+              const e1rm = setE1RM(set)
+              const isPR = bestPrevE1RM > 0 && e1rm !== null && e1rm > bestPrevE1RM
+              return (
+                <div key={set.id} className="grid grid-cols-[52px_1fr_1fr_52px_24px] gap-2 items-center">
+                  <span className="text-blue-400 text-sm font-bold tracking-wide leading-tight">
+                    Set {set.set_number}
+                    {isPR && (
+                      <span className="block text-[10px] font-black tracking-widest text-amber-400">★ PR</span>
+                    )}
+                  </span>
                   <input
-                    type="checkbox"
-                    checked={set.paused || false}
-                    onChange={(e) => updateSet(set.id, 'paused', e.target.checked)}
-                    className="w-5 h-5 rounded accent-blue-500 cursor-pointer"
+                    type="text"
+                    inputMode="decimal"
+                    value={set.weight}
+                    onChange={(e) => updateSet(set.id, 'weight', e.target.value)}
+                    onBlur={() => saver.flush(set.id)}
+                    placeholder="—"
+                    className={`bg-[#131f35] border rounded-xl px-3 py-2.5 text-white text-center text-sm font-semibold focus:outline-none focus:border-blue-500 focus:bg-[#1a2a45] transition-colors w-full ${
+                      isPR ? 'border-amber-400/50' : 'border-blue-900/30'
+                    }`}
                   />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={set.reps}
+                    onChange={(e) => updateSet(set.id, 'reps', e.target.value)}
+                    onBlur={() => saver.flush(set.id)}
+                    placeholder="—"
+                    className={`bg-[#131f35] border rounded-xl px-3 py-2.5 text-white text-center text-sm font-semibold focus:outline-none focus:border-blue-500 focus:bg-[#1a2a45] transition-colors w-full ${
+                      isPR ? 'border-amber-400/50' : 'border-blue-900/30'
+                    }`}
+                  />
+                  <div className="flex items-center justify-center">
+                    <input
+                      type="checkbox"
+                      checked={set.paused || false}
+                      onChange={(e) => {
+                        updateSet(set.id, 'paused', e.target.checked)
+                        saver.flush(set.id)
+                      }}
+                      className="w-5 h-5 rounded accent-blue-500 cursor-pointer"
+                    />
+                  </div>
+                  <button
+                    onClick={() => setConfirmSetId(set.id)}
+                    className="text-red-400/30 hover:text-red-400 text-xs flex items-center justify-center transition-colors"
+                  >
+                    ✕
+                  </button>
                 </div>
-                <button
-                  onClick={() => setConfirmSetId(set.id)}
-                  className="text-red-400/30 hover:text-red-400 text-xs flex items-center justify-center transition-colors"
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
 
@@ -185,13 +238,13 @@ export default function ExerciseCard({ exercise, isOpen, onToggle, onDelete, onS
             </button>
             {sets.length > 0 && onStartRest && (
               <div className="flex gap-2">
-                {[60, 90, 120].map((s) => (
+                {REST_OPTIONS.map((s) => (
                   <button
                     key={s}
                     onClick={() => onStartRest(s)}
-                    className="flex-1 py-2 bg-[#131f35] border border-blue-900/30 rounded-xl text-blue-300/60 hover:text-blue-200 hover:border-blue-700/60 active:scale-95 text-xs font-bold tracking-widest transition-all"
+                    className="flex-1 py-2 bg-[#131f35] border border-blue-900/30 rounded-xl text-blue-300/60 hover:text-blue-200 hover:border-blue-700/60 active:scale-95 text-xs font-bold tracking-widest tabular-nums transition-all"
                   >
-                    ⏱ {s}s
+                    ⏱ {fmtRest(s)}
                   </button>
                 ))}
               </div>
@@ -200,11 +253,33 @@ export default function ExerciseCard({ exercise, isOpen, onToggle, onDelete, onS
         )}
       </div>
 
+      {showMenu && (
+        <ExerciseMenu
+          name={exercise.name}
+          canMoveUp={canMoveUp}
+          canMoveDown={canMoveDown}
+          onHistory={() => setShowHistory(true)}
+          onRename={onRename}
+          onMoveUp={onMoveUp}
+          onMoveDown={onMoveDown}
+          onRemove={() => setConfirmExercise(true)}
+          onClose={() => setShowMenu(false)}
+        />
+      )}
+
+      {showHistory && (
+        <ExerciseHistoryModal
+          name={exercise.name}
+          history={history}
+          onClose={() => setShowHistory(false)}
+        />
+      )}
+
       {/* Exercise delete confirmation */}
       {confirmExercise && (
         <DeleteModal
           tabName={exercise.name}
-          message="All sets for this exercise will be permanently deleted."
+          message="All sets and saved history for this exercise will be permanently deleted."
           onConfirm={onDelete}
           onClose={() => setConfirmExercise(false)}
         />
